@@ -5,7 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ÔN THI KIỂM TRA TẬP SỰ CÔNG CHỨNG 2026</title>
 <script defer src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<script type="module">
 
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+
+  apiKey: "DÁN API CỦA BẠN",
+
+  authDomain: "....",
+
+  projectId: "....",
+
+  storageBucket: "....",
+
+  messagingSenderId: "....",
+
+  appId: "...."
+};
+
+const app = initializeApp(firebaseConfig);
+
+const db = getFirestore(app);
+
+window.db = db;
+window.doc = doc;
+window.setDoc = setDoc;
+window.getDoc = getDoc;
+
+</script>
 <style>
 body{
   font-family:Arial,sans-serif;
@@ -100,7 +135,7 @@ button:hover{
   border-radius:10px;
 }
 
-/* --- ĐÃ SỬA: Giao diện nút bấm trên PC --- */
+/* --- ĐA SỬA: Giao diện nút điều hướng trên PC --- */
 .nav-buttons{
   display:flex;
   gap:12px;
@@ -118,12 +153,12 @@ button:hover{
   margin-bottom:10px;
 }
 
-/* --- ĐÃ SỬA: Tối ưu riêng trên điện thoại iPhone --- */
+/* --- ĐÃ SỬA: Tối ưu nút dính đáy màn hình trên iPhone --- */
 @media(max-width:768px){
   button,select{width:100%}
   .question{font-size:18px}
   
-  /* Cố định thanh điều hướng dính chặt sát đáy màn hình */
+  /* Cố định thanh điều hướng ở sát đáy màn hình điện thoại */
   .nav-buttons {
     position: fixed;
     bottom: 0;
@@ -138,18 +173,18 @@ button:hover{
     gap: 10px;
   }
   
-  /* Ép 2 nút chia đôi màn hình theo hàng ngang để ngón cái dễ chạm */
+  /* Chia đôi 2 nút theo chiều ngang vừa vặn với ngón cái */
   .nav-buttons button {
     width: 50% !important;
     margin: 0 !important;
   }
 
-  /* Đổi nút Tiếp Theo sang màu xanh lá làm điểm nhấn */
+  /* Đổi màu nút Tiếp Theo sang màu xanh lá nổi bật dễ nhận biết */
   #btnNext {
     background: #059669 !important; 
   }
   
-  /* Tạo khoảng trống ở đáy để nút không che mất chữ */
+  /* Thêm khoảng trống ở đáy khu vực làm bài để nút không che mất chữ */
   #quizArea {
     padding-bottom: 80px;
   }
@@ -337,7 +372,7 @@ passwordInput.addEventListener('keypress',(e)=>{
   if(e.key==='Enter') loginApp();
 });
 
-const APP_PASSWORD='123456';
+const APP_PASSWORD='131124';
 
 function loginApp(){
 
@@ -672,6 +707,7 @@ function selectAnswer(index){
     );
   }
 
+  // LƯU TIẾN ĐỘ ĐÚNG VỊ TRÍ
   if(studyMode){
 
     localStorage.setItem(
@@ -979,7 +1015,7 @@ function shuffle(arr){
   }
 }
 
-/* --- ĐÃ THÊM: Tính năng vuốt màn hình (Swipe) để chuyển câu trên iPhone --- */
+/* --- ĐÃ THÊM: Tính năng cảm ứng vuốt màn hình (Swipe) trên iPhone --- */
 let touchstartX = 0;
 let touchendX = 0;
 const quizArea = document.getElementById('quizArea');
@@ -995,10 +1031,10 @@ quizArea.addEventListener('touchend', e => {
 
 function handleGesture() {
     if (touchstartX - touchendX > 80) { 
-        nextQuestion(); // Vuốt từ phải sang trái -> Qua câu tiếp theo
+        nextQuestion(); // Vuốt màn hình từ phải sang trái -> Sang câu tiếp theo
     }
     if (touchendX - touchstartX > 80) {
-        prevQuestion(); // Vuốt từ trái sang phải -> Quay lại câu trước
+        prevQuestion(); // Vuốt màn hình từ trái sang phải -> Lùi lại câu cũ
     }
 }
 
