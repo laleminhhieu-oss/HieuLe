@@ -17,7 +17,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAdPtNlnn0Qn3RQtxSq_CpqqU11L2OGzvE",
+
+   apiKey: "AIzaSyAdPtNlnn0Qn3RQtxSq_CpqqU11L2OGzvE",
   authDomain: "hieule-ad864.firebaseapp.com",
   projectId: "hieule-ad864",
   storageBucket: "hieule-ad864.firebasestorage.app",
@@ -367,7 +368,7 @@ passwordInput.addEventListener('keypress',(e)=>{
   if(e.key==='Enter') loginApp();
 });
 
-const APP_PASSWORD='13112024';
+const APP_PASSWORD='131124';
 
 function loginApp(){
 
@@ -1032,18 +1033,7 @@ function handleGesture() {
         prevQuestion(); // Vuốt màn hình từ trái sang phải -> Lùi lại câu cũ
     }
 }
-// Chặn chuột phải
-document.addEventListener('contextmenu', event => event.preventDefault());
 
-// Chặn Ctrl+U, Ctrl+S, F12
-document.onkeydown = function(e) {
-  if (e.keyCode == 123) { return false; } // Chặn F12
-  if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; }
-  if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; }
-  if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; }
-  if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; } // Chặn Ctrl+U
-  if (e.ctrlKey && e.keyCode == 'S'.charCodeAt(0)) { return false; } // Chặn Ctrl+S
-};
 renderHistory();
 
 </script>
