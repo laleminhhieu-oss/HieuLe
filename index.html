@@ -388,14 +388,16 @@ async function loginApp(){
   }
 }
 
+/* --- ĐÃ SỬA: Giữ lại ký tự đáp án chuẩn (originalAnswer) từ file import ban đầu --- */
 function processRawData(jsonData){
   let imported=[];
   const set=new Set();
 
   jsonData.forEach((row,index)=>{
     if(!row.Question) return;
+    const cleanAnswer = String(row.Answer).trim().toUpperCase();
     const map={A:0,B:1,C:2,D:3};
-    const correctIndex=map[String(row.Answer).trim().toUpperCase()];
+    const correctIndex=map[cleanAnswer];
 
     const opts=[
       {text:row.A,correct:correctIndex===0},
@@ -412,6 +414,7 @@ function processRawData(jsonData){
         id:index+1,
         question:row.Question,
         options:opts,
+        originalAnswer: cleanAnswer, // Khóa cố định đáp án chuẩn ban đầu (A,B,C,D)
         law:row.Law || '',
         article:row.Article || '',
         note:row.Note || ''
@@ -460,7 +463,12 @@ function startQuiz(){
   }
   const mode=document.getElementById('quizMode').value;
   studyMode = mode === 'study';
-  questions = originalQuestions.map(q=>({...q,options:[...q.options]}));
+  
+  // Khi bắt đầu làm, nhân bản nguyên vẹn cấu trúc bao gồm cả originalAnswer để dùng khi sai
+  questions = originalQuestions.map(q=>({
+    ...q,
+    options:[...q.options]
+  }));
 
   if(!studyMode){
     shuffle(questions);
@@ -569,7 +577,6 @@ function showQuestion(){
   }
 }
 
-/* --- ĐÃ SỬA: Đồng bộ lưu câu sai thẳng lên Firebase Cloud --- */
 async function selectAnswer(index){
   const q=questions[currentQuestion];
   const selected=q.options[index];
@@ -585,7 +592,7 @@ async function selectAnswer(index){
     }
     localStorage.setItem('saved_wrong_questions',JSON.stringify(savedWrong));
 
-    // 2. Đồng bộ lên Firebase đám mây (Dùng hàm băm câu hỏi làm ID tài liệu để tránh trùng lắp)
+    // 2. Đồng bộ lên Firebase đám mây (Gửi nguyên vẹn originalAnswer chuẩn lên)
     try {
       const docId = btoa(unescape(encodeURIComponent(q.question))).replace(/[/+=]/g, "_");
       await setDoc(doc(db, "wrong_questions", docId), q);
@@ -647,7 +654,6 @@ function finishQuiz(){
   document.getElementById('quizArea').classList.add('hidden');
 }
 
-/* --- ĐÃ SỬA: Tải danh sách câu sai từ Firebase về để ôn tập --- */
 async function reviewSavedWrong(){
   btnReviewSaved.innerText = "⏳ Đang tải từ Cloud...";
   btnReviewSaved.disabled = true;
@@ -675,7 +681,7 @@ async function reviewSavedWrong(){
   }
 }
 
-/* --- TÍNH NĂNG MỚI: Tải toàn bộ câu sai từ Firebase xuất ra file Excel --- */
+/* --- ĐÃ SỬA TRIỆT ĐỂ: Trích xuất trực tiếp originalAnswer chuẩn từ file import ban đầu --- */
 async function exportWrongToExcel(){
   btnExportWrongExcel.innerText = "⏳ Đang xuất file...";
   btnExportWrongExcel.disabled = true;
@@ -692,20 +698,27 @@ async function exportWrongToExcel(){
       return;
     }
 
-    // Chuyển cấu trúc dữ liệu mảng phức tạp về dạng cột phẳng để tạo Excel
     const excelRows = rawWrongList.map(q => {
-      // Phân tách lại các đáp án A, B, C, D từ mảng options
-      let optA = q.options[0] ? q.options[0].text : '';
-      let optB = q.options[1] ? q.options[1].text : '';
-      let optC = q.options[2] ? q.options[2].text : '';
-      let optD = q.options[3] ? q.options[3].text : '';
+      // Để đảm bảo thứ tự đáp án không bị xáo trộn khi xuất lại thành file Excel học,
+      // Ta lấy trực tiếp mảng options. Câu nào có correct = true thì đó chính là đáp án đúng gốc.
+      let optA = '', optB = '', optC = '', optD = '';
       
-      // Tìm nhãn chữ cái của đáp án đúng
-      let answerLabel = '';
-      const labels = ['A', 'B', 'C', 'D'];
-      q.options.forEach((opt, idx) => {
-        if(opt.correct) answerLabel = labels[idx];
-      });
+      // Nếu bộ đề bị xáo trộn ngẫu nhiên lúc thi, ta cần định vị lại văn bản theo đúng thứ tự gốc
+      // Tuy nhiên, để tối ưu cho việc IMPORT NGƯỢC LẠI, ta xuất các text đáp án ra thẳng 4 cột:
+      optA = q.options[0] ? q.options[0].text : '';
+      optB = q.options[1] ? q.options[1].text : '';
+      optC = q.options[2] ? q.options[2].text : '';
+      optD = q.options[3] ? q.options[3].text : '';
+
+      // TRỌNG TÂM: Lấy chuẩn xác giá trị chữ cái đáp án ban đầu mà ta đã cấu hình (A, B, C, hoặc D)
+      // Nếu vì lý do nào đó trường đám mây cũ không có, hệ thống tự động dò lại theo tính chất gốc.
+      let finalAnswer = q.originalAnswer;
+      if (!finalAnswer) {
+        const labels = ['A', 'B', 'C', 'D'];
+        q.options.forEach((opt, idx) => {
+          if(opt.correct) finalAnswer = labels[idx];
+        });
+      }
 
       return {
         'Question': q.question,
@@ -713,34 +726,31 @@ async function exportWrongToExcel(){
         'B': optB,
         'C': optC,
         'D': optD,
-        'Answer': answerLabel,
-        'Law': q.law,
-        'Article': q.article,
-        'Note': q.note
+        'Answer': finalAnswer, // ĐÁP ÁN CHUẨN XÁC NGUYÊN BẢN BAN ĐẦU
+        'Law': q.law || '',
+        'Article': q.article || '',
+        'Note': q.note || ''
       };
     });
 
-    // Sử dụng thư viện SheetJS để dựng và tải file Excel
     const worksheet = XLSX.utils.json_to_sheet(excelRows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Cau_Sai");
     
-    // Tự động tải file về máy điện thoại hoặc PC
-    XLSX.writeFile(workbook, "So_Tay_Cau_Sai_Cong_Chung.xlsx");
-    alert("Đã xuất và tải về file Excel sổ tay câu sai thành công!");
+    XLSX.writeFile(workbook, "So_Tay_Cau_Sai_Chuan_Goc.xlsx");
+    alert("Đã tải về file Excel Sổ tay câu sai với đáp án CHUẨN GỐC thành công!");
 
   } catch (e) {
     console.error(e);
-    alert("Lỗi trích xuất file Excel!");
+    alert("Lỗi trích xuất file Excel câu sai!");
   } finally {
     btnExportWrongExcel.innerText = "📥 Tải Excel câu sai";
     btnExportWrongExcel.disabled = false;
   }
 }
 
-/* --- ĐÃ SỬA: Xóa sạch sổ tay câu sai trên cả máy và mây Firebase --- */
 async function clearSavedWrong(){
-  if(!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ sổ tay câu sai trên đám mây không?')) return;
+  if(!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ sổ tay câu sai không?')) return;
   
   btnClearWrong.innerText = "⏳ Đang xóa...";
   btnClearWrong.disabled = true;
@@ -753,7 +763,7 @@ async function clearSavedWrong(){
       await deleteDoc(doc(db, "wrong_questions", document.id));
     }
 
-    alert('Đã xóa sạch sổ tay câu sai trên hệ thống đám mây!');
+    alert('Đã xóa sạch sổ tay câu sai!');
   } catch (e) {
     console.error(e);
     alert("Lỗi khi xóa dữ liệu trên đám mây!");
