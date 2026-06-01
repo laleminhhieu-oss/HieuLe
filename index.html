@@ -118,7 +118,6 @@ button:hover{
   margin-bottom:10px;
 }
 
-/* --- Tối ưu nút dính đáy màn hình trên iPhone --- */
 @media(max-width:768px){
   button,select{width:100%}
   .question{font-size:18px}
@@ -210,7 +209,11 @@ button:hover{
     </button>
 
     <button id="btnReviewSaved" style="background:#7c3aed;">
-      📚 Ôn câu sai đã lưu
+      📚 Ôn câu sai từ Cloud
+    </button>
+
+    <button id="btnExportWrongExcel" style="background:#ea580c;">
+      📥 Tải Excel câu sai
     </button>
 
     <button id="btnClearWrong" style="background:#b91c1c;">
@@ -295,7 +298,7 @@ button:hover{
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAdPtNlnn0Qn3RQtxSq_CpqqU11L2OGzvE",
@@ -323,6 +326,7 @@ const excelFile=document.getElementById('excelFile');
 const btnImport=document.getElementById('btnImport');
 const btnStart=document.getElementById('btnStart');
 const btnReviewSaved=document.getElementById('btnReviewSaved');
+const btnExportWrongExcel=document.getElementById('btnExportWrongExcel');
 const btnClearWrong=document.getElementById('btnClearWrong');
 const btnClearHistory=document.getElementById('btnClearHistory');
 const btnResetStudy=document.getElementById('btnResetStudy');
@@ -336,6 +340,7 @@ btnImport.onclick=()=>excelFile.click();
 excelFile.addEventListener('change',importExcel);
 btnStart.addEventListener('click',startQuiz);
 btnReviewSaved.addEventListener('click',reviewSavedWrong);
+btnExportWrongExcel.addEventListener('click',exportWrongToExcel);
 btnClearWrong.addEventListener('click',clearSavedWrong);
 btnClearHistory.addEventListener('click',clearHistory);
 btnResetStudy.addEventListener('click',resetStudyProgress);
@@ -348,11 +353,9 @@ passwordInput.addEventListener('keypress',(e)=>{
   if(e.key==='Enter') loginApp();
 });
 
-/* --- ĐÃ SỬA: Hàm kiểm tra mật khẩu lấy từ Firebase về --- */
 async function loginApp(){
   const value = passwordInput.value.trim();
   const error = document.getElementById('loginError');
-  
   if(!value) return;
 
   btnLogin.innerText = "⏳ Đang xác thực...";
@@ -364,7 +367,6 @@ async function loginApp(){
 
     if (docSnap.exists()) {
       const cloudPassword = docSnap.data().password;
-
       if(value === String(cloudPassword).trim()){
         document.getElementById('loginScreen').style.display='none';
         document.getElementById('mainApp').style.display='block';
@@ -567,7 +569,8 @@ function showQuestion(){
   }
 }
 
-function selectAnswer(index){
+/* --- ĐÃ SỬA: Đồng bộ lưu câu sai thẳng lên Firebase Cloud --- */
+async function selectAnswer(index){
   const q=questions[currentQuestion];
   const selected=q.options[index];
   userAnswers[currentQuestion]={selected:index,correct:selected.correct};
@@ -575,11 +578,20 @@ function selectAnswer(index){
   if(selected.correct){
     score++;
   }else{
+    // 1. Lưu offline dự phòng
     let savedWrong=JSON.parse(localStorage.getItem('saved_wrong_questions') || '[]');
     if(!savedWrong.some(w=>w.question===q.question)){
       savedWrong.push(q);
     }
     localStorage.setItem('saved_wrong_questions',JSON.stringify(savedWrong));
+
+    // 2. Đồng bộ lên Firebase đám mây (Dùng hàm băm câu hỏi làm ID tài liệu để tránh trùng lắp)
+    try {
+      const docId = btoa(unescape(encodeURIComponent(q.question))).replace(/[/+=]/g, "_");
+      await setDoc(doc(db, "wrong_questions", docId), q);
+    } catch (e) {
+      console.error("Lỗi đồng bộ câu sai lên mây: ", e);
+    }
   }
 
   if(studyMode){
@@ -635,20 +647,120 @@ function finishQuiz(){
   document.getElementById('quizArea').classList.add('hidden');
 }
 
-function reviewSavedWrong(){
-  const saved=JSON.parse(localStorage.getItem('saved_wrong_questions') || '[]');
-  if(!saved.length){
-    alert('Chưa có câu sai được lưu');
-    return;
+/* --- ĐÃ SỬA: Tải danh sách câu sai từ Firebase về để ôn tập --- */
+async function reviewSavedWrong(){
+  btnReviewSaved.innerText = "⏳ Đang tải từ Cloud...";
+  btnReviewSaved.disabled = true;
+
+  try {
+    const querySnapshot = await getDocs(collection(db, "wrong_questions"));
+    let cloudWrong = [];
+    querySnapshot.forEach((doc) => {
+      cloudWrong.push(doc.data());
+    });
+
+    if(!cloudWrong.length){
+      alert('Không tìm thấy câu sai nào lưu trên đám mây Firebase!');
+      return;
+    }
+
+    originalQuestions = [...cloudWrong];
+    startQuiz();
+  } catch (e) {
+    console.error(e);
+    alert("Không thể tải câu sai từ máy chủ!");
+  } finally {
+    btnReviewSaved.innerText = "📚 Ôn câu sai từ Cloud";
+    btnReviewSaved.disabled = false;
   }
-  originalQuestions=[...saved];
-  startQuiz();
 }
 
-function clearSavedWrong(){
-  if(!confirm('Xóa toàn bộ sổ tay câu sai?')) return;
-  localStorage.removeItem('saved_wrong_questions');
-  alert('Đã xóa toàn bộ câu sai đã lưu');
+/* --- TÍNH NĂNG MỚI: Tải toàn bộ câu sai từ Firebase xuất ra file Excel --- */
+async function exportWrongToExcel(){
+  btnExportWrongExcel.innerText = "⏳ Đang xuất file...";
+  btnExportWrongExcel.disabled = true;
+
+  try {
+    const querySnapshot = await getDocs(collection(db, "wrong_questions"));
+    let rawWrongList = [];
+    querySnapshot.forEach((doc) => {
+      rawWrongList.push(doc.data());
+    });
+
+    if(!rawWrongList.length){
+      alert("Kho câu sai trên mây hiện tại đang trống!");
+      return;
+    }
+
+    // Chuyển cấu trúc dữ liệu mảng phức tạp về dạng cột phẳng để tạo Excel
+    const excelRows = rawWrongList.map(q => {
+      // Phân tách lại các đáp án A, B, C, D từ mảng options
+      let optA = q.options[0] ? q.options[0].text : '';
+      let optB = q.options[1] ? q.options[1].text : '';
+      let optC = q.options[2] ? q.options[2].text : '';
+      let optD = q.options[3] ? q.options[3].text : '';
+      
+      // Tìm nhãn chữ cái của đáp án đúng
+      let answerLabel = '';
+      const labels = ['A', 'B', 'C', 'D'];
+      q.options.forEach((opt, idx) => {
+        if(opt.correct) answerLabel = labels[idx];
+      });
+
+      return {
+        'Question': q.question,
+        'A': optA,
+        'B': optB,
+        'C': optC,
+        'D': optD,
+        'Answer': answerLabel,
+        'Law': q.law,
+        'Article': q.article,
+        'Note': q.note
+      };
+    });
+
+    // Sử dụng thư viện SheetJS để dựng và tải file Excel
+    const worksheet = XLSX.utils.json_to_sheet(excelRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Cau_Sai");
+    
+    // Tự động tải file về máy điện thoại hoặc PC
+    XLSX.writeFile(workbook, "So_Tay_Cau_Sai_Cong_Chung.xlsx");
+    alert("Đã xuất và tải về file Excel sổ tay câu sai thành công!");
+
+  } catch (e) {
+    console.error(e);
+    alert("Lỗi trích xuất file Excel!");
+  } finally {
+    btnExportWrongExcel.innerText = "📥 Tải Excel câu sai";
+    btnExportWrongExcel.disabled = false;
+  }
+}
+
+/* --- ĐÃ SỬA: Xóa sạch sổ tay câu sai trên cả máy và mây Firebase --- */
+async function clearSavedWrong(){
+  if(!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ sổ tay câu sai trên đám mây không?')) return;
+  
+  btnClearWrong.innerText = "⏳ Đang xóa...";
+  btnClearWrong.disabled = true;
+
+  try {
+    localStorage.removeItem('saved_wrong_questions');
+    
+    const querySnapshot = await getDocs(collection(db, "wrong_questions"));
+    for (const document of querySnapshot.docs) {
+      await deleteDoc(doc(db, "wrong_questions", document.id));
+    }
+
+    alert('Đã xóa sạch sổ tay câu sai trên hệ thống đám mây!');
+  } catch (e) {
+    console.error(e);
+    alert("Lỗi khi xóa dữ liệu trên đám mây!");
+  } finally {
+    btnClearWrong.innerText = "🗑 Xóa sổ tay câu sai";
+    btnClearWrong.disabled = false;
+  }
 }
 
 function saveQuestionBank(){
