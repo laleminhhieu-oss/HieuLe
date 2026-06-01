@@ -5,38 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ÔN THI KIỂM TRA TẬP SỰ CÔNG CHỨNG 2026</title>
 <script defer src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-<script type="module">
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-const firebaseConfig = {
-
-   apiKey: "AIzaSyAdPtNlnn0Qn3RQtxSq_CpqqU11L2OGzvE",
-  authDomain: "hieule-ad864.firebaseapp.com",
-  projectId: "hieule-ad864",
-  storageBucket: "hieule-ad864.firebasestorage.app",
-  messagingSenderId: "733259121834",
-  appId: "1:733259121834:web:bb37f6ccef449d928f7cd3",
-  measurementId: "G-1T9NRQQEJT"
-};
-
-const app = initializeApp(firebaseConfig);
-
-const db = getFirestore(app);
-
-window.db = db;
-window.doc = doc;
-window.setDoc = setDoc;
-window.getDoc = getDoc;
-
-</script>
 <style>
 body{
   font-family:Arial,sans-serif;
@@ -131,7 +100,7 @@ button:hover{
   border-radius:10px;
 }
 
-/* --- ĐA SỬA: Giao diện nút điều hướng trên PC --- */
+/* --- Giao diện nút điều hướng trên PC --- */
 .nav-buttons{
   display:flex;
   gap:12px;
@@ -149,12 +118,11 @@ button:hover{
   margin-bottom:10px;
 }
 
-/* --- ĐÃ SỬA: Tối ưu nút dính đáy màn hình trên iPhone --- */
+/* --- Tối ưu nút dính đáy màn hình trên iPhone --- */
 @media(max-width:768px){
   button,select{width:100%}
   .question{font-size:18px}
   
-  /* Cố định thanh điều hướng ở sát đáy màn hình điện thoại */
   .nav-buttons {
     position: fixed;
     bottom: 0;
@@ -169,18 +137,15 @@ button:hover{
     gap: 10px;
   }
   
-  /* Chia đôi 2 nút theo chiều ngang vừa vặn với ngón cái */
   .nav-buttons button {
     width: 50% !important;
     margin: 0 !important;
   }
 
-  /* Đổi màu nút Tiếp Theo sang màu xanh lá nổi bật dễ nhận biết */
   #btnNext {
     background: #059669 !important; 
   }
   
-  /* Thêm khoảng trống ở đáy khu vực làm bài để nút không che mất chữ */
   #quizArea {
     padding-bottom: 80px;
   }
@@ -211,7 +176,7 @@ button:hover{
       id="loginError"
       style="margin-top:12px;color:#dc2626;font-weight:bold;display:none;"
     >
-      ❌ Mật khẩu không đúng
+      ❌ Mật khẩu không chính xác hoặc lỗi kết nối!
     </div>
 
   </div>
@@ -244,7 +209,6 @@ button:hover{
       🚀 Bắt đầu thi
     </button>
 
-    
     <button id="btnReviewSaved" style="background:#7c3aed;">
       📚 Ôn câu sai đã lưu
     </button>
@@ -328,7 +292,23 @@ button:hover{
 
 </div>
 
-<script>
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAdPtNlnn0Qn3RQtxSq_CpqqU11L2OGzvE",
+  authDomain: "hieule-ad864.firebaseapp.com",
+  projectId: "hieule-ad864",
+  storageBucket: "hieule-ad864.firebasestorage.app",
+  messagingSenderId: "733259121834",
+  appId: "1:733259121834:web:bb37f6ccef449d928f7cd3",
+  measurementId: "G-1T9NRQQEJT"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 let originalQuestions=[];
 let questions=[];
@@ -368,43 +348,51 @@ passwordInput.addEventListener('keypress',(e)=>{
   if(e.key==='Enter') loginApp();
 });
 
-const APP_PASSWORD='13112024';
+/* --- ĐÃ SỬA: Hàm kiểm tra mật khẩu lấy từ Firebase về --- */
+async function loginApp(){
+  const value = passwordInput.value.trim();
+  const error = document.getElementById('loginError');
+  
+  if(!value) return;
 
-function loginApp(){
+  btnLogin.innerText = "⏳ Đang xác thực...";
+  btnLogin.disabled = true;
 
-  const value=passwordInput.value.trim();
+  try {
+    const docRef = doc(db, "system", "auth");
+    const docSnap = await getDoc(docRef);
 
-  const error=document.getElementById('loginError');
+    if (docSnap.exists()) {
+      const cloudPassword = docSnap.data().password;
 
-  if(value===APP_PASSWORD){
-
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('mainApp').style.display='block';
-
-    error.style.display='none';
-
-    renderBanks();
-
-  }else{
-
+      if(value === String(cloudPassword).trim()){
+        document.getElementById('loginScreen').style.display='none';
+        document.getElementById('mainApp').style.display='block';
+        error.style.display='none';
+        renderBanks();
+      } else {
+        error.style.display='block';
+        passwordInput.focus();
+      }
+    } else {
+      alert("Lỗi kết nối cấu hình Firestore!");
+    }
+  } catch (e) {
+    console.error(e);
     error.style.display='block';
-    passwordInput.focus();
-
+  } finally {
+    btnLogin.innerText = "🔓 Đăng nhập";
+    btnLogin.disabled = false;
   }
 }
 
 function processRawData(jsonData){
-
   let imported=[];
-
   const set=new Set();
 
   jsonData.forEach((row,index)=>{
-
     if(!row.Question) return;
-
     const map={A:0,B:1,C:2,D:3};
-
     const correctIndex=map[String(row.Answer).trim().toUpperCase()];
 
     const opts=[
@@ -417,9 +405,7 @@ function processRawData(jsonData){
     const key=String(row.Question).trim().toLowerCase();
 
     if(!set.has(key)){
-
       set.add(key);
-
       imported.push({
         id:index+1,
         question:row.Question,
@@ -430,196 +416,116 @@ function processRawData(jsonData){
       });
     }
   });
-
   return imported;
 }
 
 async function importExcel(e){
-
   const files=[...e.target.files];
-
   if(!files.length) return;
-
   let allJsonData=[];
 
   for(const file of files){
-
     const data=await file.arrayBuffer();
-
     const workbook=XLSX.read(data,{type:'array'});
-
     const sheet=workbook.Sheets[workbook.SheetNames[0]];
-
     const json=XLSX.utils.sheet_to_json(sheet);
-
     allJsonData=allJsonData.concat(json);
   }
 
   const imported=processRawData(allJsonData);
-
   if(imported.length>0){
-
     originalQuestions=imported;
-
     alert('Import thành công '+imported.length+' câu hỏi.');
-
     askToSaveOffline(imported);
-
   }else{
-
     alert('Không tìm thấy dữ liệu hợp lệ.');
   }
-
   excelFile.value='';
 }
 
 function askToSaveOffline(importedData){
-
-  const autoSave=confirm(
-    'Bạn có muốn lưu bộ đề offline không?'
-  );
-
+  const autoSave=confirm('Bạn có muốn lưu bộ đề offline không?');
   if(autoSave){
-
     const name=prompt('Nhập tên bộ đề');
-
     if(name) saveBankData(name,importedData);
   }
 }
 
 function startQuiz(){
-
   if(!originalQuestions.length){
     alert('Hãy import dữ liệu hoặc nạp bộ đề!');
     return;
   }
-
   const mode=document.getElementById('quizMode').value;
-
   studyMode = mode === 'study';
-
-  questions = originalQuestions.map(q=>(
-    {
-      ...q,
-      options:[...q.options]
-    }
-  ));
+  questions = originalQuestions.map(q=>({...q,options:[...q.options]}));
 
   if(!studyMode){
-
     shuffle(questions);
-
     questions.forEach(q=>shuffle(q.options));
-
     if(mode!=='all'){
-
-      questions = questions.slice(
-        0,
-        Math.min(parseInt(mode),questions.length)
-      );
+      questions = questions.slice(0,Math.min(parseInt(mode),questions.length));
     }
-
     currentQuestion=0;
     score=0;
     userAnswers=[];
-
   }else{
-
-    const savedProgress=JSON.parse(
-      localStorage.getItem('study_progress') || '{}'
-    );
-
+    const savedProgress=JSON.parse(localStorage.getItem('study_progress') || '{}');
     if(savedProgress.currentQuestion !== undefined){
-
-      const resume=confirm(
-        `📖 Tiếp tục từ câu ${savedProgress.currentQuestion + 1}?`
-      );
-
+      const resume=confirm(`📖 Tiếp tục từ câu ${savedProgress.currentQuestion + 1}?`);
       if(resume){
-
         currentQuestion=savedProgress.currentQuestion || 0;
         userAnswers=savedProgress.userAnswers || [];
         score=savedProgress.score || 0;
-
       }else{
-
         currentQuestion=0;
         userAnswers=[];
         score=0;
       }
-
     }else{
-
       currentQuestion=0;
       userAnswers=[];
       score=0;
     }
   }
 
-
   seconds=0;
-
   clearInterval(timer);
-
   timer=setInterval(()=>{
-
     seconds++;
-
-    document.getElementById('timer').innerText=
-      formatTime(seconds);
-
+    document.getElementById('timer').innerText=formatTime(seconds);
   },1000);
 
   document.getElementById('quizArea').classList.remove('hidden');
-
   document.getElementById('resultArea').classList.add('hidden');
-
   showQuestion();
 }
 
 function showQuestion(){
-
   const q=questions[currentQuestion];
-
   if(!q){
     finishQuiz();
     return;
   }
-
   const navMode=document.getElementById('navigationMode').value;
-
-  document.getElementById('navButtons')
-    .classList.toggle('hidden',navMode==='auto');
-
-  document.getElementById('questionCounter').innerText=
-    `Câu ${currentQuestion+1}/${questions.length}`;
-
-  document.getElementById('scoreCounter').innerText=
-    `Điểm: ${score}`;
-
+  document.getElementById('navButtons').classList.toggle('hidden',navMode==='auto');
+  document.getElementById('questionCounter').innerText=`Câu ${currentQuestion+1}/${questions.length}`;
+  document.getElementById('scoreCounter').innerText=`Điểm: ${score}`;
   document.getElementById('questionText').innerText=q.question;
-
   const container=document.getElementById('optionsContainer');
-
   container.innerHTML='';
 
   q.options.forEach((opt,index)=>{
-
     const div=document.createElement('div');
-
     div.className='option';
-
     let text=opt.text;
-
     const saved=userAnswers[currentQuestion];
 
     if(saved){
-
       if(opt.correct){
         div.classList.add('correct');
         text+=' ✅';
       }
-
       if(saved.selected===index && !opt.correct){
         div.classList.add('wrong');
         text+=' ❌';
@@ -627,47 +533,34 @@ function showQuestion(){
     }
 
     div.innerText=text;
-
     if(!saved){
       div.onclick=()=>selectAnswer(index);
     }
-
     container.appendChild(div);
   });
 
   const legalBox=document.getElementById('legalBox');
   const legalContent=document.getElementById('legalContent');
-
   legalBox.classList.add('hidden');
   legalContent.innerHTML='';
-
   const saved=userAnswers[currentQuestion];
 
   if(saved){
-
     const html=`
       <div><b>📚 Luật:</b> ${q.law || 'Chưa cập nhật'}</div>
       <div><b>📘 Điều:</b> ${q.article || 'Chưa cập nhật'}</div>
       <div><b>📝 Ghi chú:</b><br>${q.note || 'Chưa có ghi chú'}</div>
     `;
-
     if(saved.correct){
-
       const btn=document.createElement('button');
-
       btn.innerText='👁 Xem căn cứ pháp lý';
-
       btn.style.marginTop='15px';
-
       btn.onclick=()=>{
         legalBox.classList.toggle('hidden');
         legalContent.innerHTML=html;
       };
-
       container.appendChild(btn);
-
     }else{
-
       legalBox.classList.remove('hidden');
       legalContent.innerHTML=html;
     }
@@ -675,80 +568,40 @@ function showQuestion(){
 }
 
 function selectAnswer(index){
-
   const q=questions[currentQuestion];
-
   const selected=q.options[index];
-
-  userAnswers[currentQuestion]={
-    selected:index,
-    correct:selected.correct
-  };
+  userAnswers[currentQuestion]={selected:index,correct:selected.correct};
 
   if(selected.correct){
     score++;
   }else{
-
-    let savedWrong=JSON.parse(
-      localStorage.getItem('saved_wrong_questions') || '[]'
-    );
-
+    let savedWrong=JSON.parse(localStorage.getItem('saved_wrong_questions') || '[]');
     if(!savedWrong.some(w=>w.question===q.question)){
       savedWrong.push(q);
     }
-
-    localStorage.setItem(
-      'saved_wrong_questions',
-      JSON.stringify(savedWrong)
-    );
+    localStorage.setItem('saved_wrong_questions',JSON.stringify(savedWrong));
   }
 
-  // LƯU TIẾN ĐỘ ĐÚNG VỊ TRÍ
   if(studyMode){
-
-    localStorage.setItem(
-      'study_progress',
-      JSON.stringify({
-        currentQuestion,
-        userAnswers,
-        score
-      })
-    );
+    localStorage.setItem('study_progress',JSON.stringify({currentQuestion,userAnswers,score}));
   }
 
   showQuestion();
-
   const navMode=document.getElementById('navigationMode').value;
-
   if(navMode==='auto'){
     setTimeout(()=>nextQuestion(),1000);
   }
 }
 
 function nextQuestion(){
-
   if(currentQuestion < questions.length - 1){
-
     currentQuestion++;
-
     if(studyMode){
-
-      localStorage.setItem(
-        'study_progress',
-        JSON.stringify({
-          currentQuestion,
-          userAnswers,
-          score
-        })
-      );
+      localStorage.setItem('study_progress',JSON.stringify({currentQuestion,userAnswers,score}));
     }
-
     showQuestion();
-
   }else{
-
     finishQuiz();
-
     if(studyMode){
       localStorage.removeItem('study_progress');
     }
@@ -756,7 +609,6 @@ function nextQuestion(){
 }
 
 function prevQuestion(){
-
   if(currentQuestion>0){
     currentQuestion--;
     showQuestion();
@@ -764,254 +616,140 @@ function prevQuestion(){
 }
 
 function finishQuiz(){
-
   clearInterval(timer);
-
-  const percent=Math.round(
-    (score/questions.length)*100
-  );
-
-  const history=JSON.parse(
-    localStorage.getItem('quiz_history') || '[]'
-  );
-
-  history.unshift({
-    date:new Date().toLocaleString(),
-    score,
-    total:questions.length,
-    percent,
-    time:formatTime(seconds)
-  });
-
-  localStorage.setItem(
-    'quiz_history',
-    JSON.stringify(history)
-  );
-
+  const percent=Math.round((score/questions.length)*100);
+  const history=JSON.parse(localStorage.getItem('quiz_history') || '[]');
+  history.unshift({date:new Date().toLocaleString(),score,total:questions.length,percent,time:formatTime(seconds)});
+  localStorage.setItem('quiz_history',JSON.stringify(history));
   renderHistory();
 
   const result=document.getElementById('resultArea');
-
   result.classList.remove('hidden');
-
   result.innerHTML=`
     <h2>🎉 Hoàn thành bài thi</h2>
     <p><b>Điểm:</b> ${score}/${questions.length}</p>
     <p><b>Tỷ lệ đúng:</b> ${percent}%</p>
     <p><b>Thời gian:</b> ${formatTime(seconds)}</p>
-<p><b>Số câu sai:</b> ${questions.length - score}</p>
+    <p><b>Số câu sai:</b> ${questions.length - score}</p>
   `;
-
   document.getElementById('quizArea').classList.add('hidden');
 }
 
-
 function reviewSavedWrong(){
-
-  const saved=JSON.parse(
-    localStorage.getItem('saved_wrong_questions') || '[]'
-  );
-
+  const saved=JSON.parse(localStorage.getItem('saved_wrong_questions') || '[]');
   if(!saved.length){
     alert('Chưa có câu sai được lưu');
     return;
   }
-
   originalQuestions=[...saved];
-
   startQuiz();
 }
 
 function clearSavedWrong(){
-
   if(!confirm('Xóa toàn bộ sổ tay câu sai?')) return;
-
   localStorage.removeItem('saved_wrong_questions');
-
   alert('Đã xóa toàn bộ câu sai đã lưu');
 }
 
 function saveQuestionBank(){
-
   if(!originalQuestions.length){
     alert('Chưa có dữ liệu để lưu');
     return;
   }
-
   const name=document.getElementById('bankName').value.trim();
-
   if(!name){
     alert('Hãy nhập tên bộ đề');
     return;
   }
-
   saveBankData(name,originalQuestions);
-
   document.getElementById('bankName').value='';
 }
 
 function saveBankData(name,data){
-
-  const banks=JSON.parse(
-    localStorage.getItem('question_banks') || '[]'
-  );
-
+  const banks=JSON.parse(localStorage.getItem('question_banks') || '[]');
   const existingIndex=banks.findIndex(b=>b.name===name);
-
-  const item={
-    name,
-    count:data.length,
-    questions:data,
-    updated:new Date().toLocaleString()
-  };
-
+  const item={name,count:data.length,questions:data,updated:new Date().toLocaleString()};
   if(existingIndex>=0){
     banks[existingIndex]=item;
   }else{
     banks.push(item);
   }
-
-  localStorage.setItem(
-    'question_banks',
-    JSON.stringify(banks)
-  );
-
+  localStorage.setItem('question_banks',JSON.stringify(banks));
   renderBanks();
-
   alert('Đã lưu bộ đề: '+name);
 }
 
 function renderBanks(){
-
-  const banks=JSON.parse(
-    localStorage.getItem('question_banks') || '[]'
-  );
-
+  const banks=JSON.parse(localStorage.getItem('question_banks') || '[]');
   const div=document.getElementById('bankList');
-
   if(!banks.length){
-
     div.innerHTML='<div class="history-item">Chưa có bộ đề nào</div>';
-
     return;
   }
-
   div.innerHTML=banks.map((b,index)=>`
-
     <div class="history-item">
-
       <b>📘 ${b.name}</b> (${b.count} câu)<br>
-
       <small>🕒 ${b.updated}</small><br>
-
-      <button
-        onclick="loadBank(${index})"
-        style="padding:4px 8px;font-size:12px;margin-top:5px;"
-      >
-        🚀 Nạp đề
-      </button>
-
-      <button
-        onclick="deleteBank(${index})"
-        style="padding:4px 8px;font-size:12px;margin-top:5px;background:#dc2626;"
-      >
-        🗑 Xóa
-      </button>
-
+      <button class="load-bank-btn" data-index="${index}" style="padding:4px 8px;font-size:12px;margin-top:5px;">🚀 Nạp đề</button>
+      <button class="delete-bank-btn" data-index="${index}" style="padding:4px 8px;font-size:12px;margin-top:5px;background:#dc2626;">🗑 Xóa</button>
     </div>
-
   `).join('');
-}
 
-function loadBank(index){
-
-  const banks=JSON.parse(
-    localStorage.getItem('question_banks') || '[]'
-  );
-
-  originalQuestions=banks[index].questions;
-
-  alert('Đã mở bộ đề: '+banks[index].name);
-}
-
-function deleteBank(index){
-
-  if(!confirm('Xóa bộ đề này?')) return;
-
-  const banks=JSON.parse(
-    localStorage.getItem('question_banks') || '[]'
-  );
-
-  banks.splice(index,1);
-
-  localStorage.setItem(
-    'question_banks',
-    JSON.stringify(banks)
-  );
-
-  originalQuestions=[];
-
-  renderBanks();
+  div.querySelectorAll('.load-bank-btn').forEach(btn => {
+    btn.onclick = () => {
+      const idx = btn.getAttribute('data-index');
+      originalQuestions = banks[idx].questions;
+      alert('Đã mở bộ đề: ' + banks[idx].name);
+    };
+  });
+  div.querySelectorAll('.delete-bank-btn').forEach(btn => {
+    btn.onclick = () => {
+      if(!confirm('Xóa bộ đề này?')) return;
+      const idx = btn.getAttribute('data-index');
+      banks.splice(idx,1);
+      localStorage.setItem('question_banks',JSON.stringify(banks));
+      originalQuestions=[];
+      renderBanks();
+    };
+  });
 }
 
 function clearHistory(){
-
   if(!confirm('Xóa lịch sử?')) return;
-
   localStorage.removeItem('quiz_history');
-
   renderHistory();
 }
 
 function renderHistory(){
-
-  const history=JSON.parse(
-    localStorage.getItem('quiz_history') || '[]'
-  );
-
+  const history=JSON.parse(localStorage.getItem('quiz_history') || '[]');
   const div=document.getElementById('history');
-
   if(!history.length){
-
     div.innerHTML='<div class="history-item">Chưa có lịch sử</div>';
-
     return;
   }
-
   div.innerHTML=history.map(h=>`
-
-    <div class="history-item">
-      📅 ${h.date} - 🎯 ${h.score}/${h.total} (${h.percent}%)
-    </div>
-
+    <div class="history-item">📅 ${h.date} - 🎯 ${h.score}/${h.total} (${h.percent}%)</div>
   `).join('');
 }
 
 function resetStudyProgress(){
-
   if(!confirm('Reset toàn bộ tiến độ học?')) return;
-
   localStorage.removeItem('study_progress');
-
   alert('Đã reset tiến độ học');
 }
 
 function formatTime(sec){
-
   return `${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
 }
 
 function shuffle(arr){
-
   for(let i=arr.length-1;i>0;i--){
-
     const j=Math.floor(Math.random()*(i+1));
-
     [arr[i],arr[j]]=[arr[j],arr[i]];
   }
 }
 
-/* --- ĐÃ THÊM: Tính năng cảm ứng vuốt màn hình (Swipe) trên iPhone --- */
+/* --- Tính năng cảm ứng vuốt màn hình (Swipe) trên iPhone --- */
 let touchstartX = 0;
 let touchendX = 0;
 const quizArea = document.getElementById('quizArea');
@@ -1022,20 +760,22 @@ quizArea.addEventListener('touchstart', e => {
 
 quizArea.addEventListener('touchend', e => {
     touchendX = e.changedTouches[0].screenX;
-    handleGesture();
+    if (touchstartX - touchendX > 80) nextQuestion(); 
+    if (touchendX - touchstartX > 80) prevQuestion();
 }, { passive: true });
 
-function handleGesture() {
-    if (touchstartX - touchendX > 80) { 
-        nextQuestion(); // Vuốt màn hình từ phải sang trái -> Sang câu tiếp theo
-    }
-    if (touchendX - touchstartX > 80) {
-        prevQuestion(); // Vuốt màn hình từ trái sang phải -> Lùi lại câu cũ
-    }
-}
+/* --- BẢO MẬT: CHẶN CHUỘT PHẢI VÀ TỔ HỢP PHÍM CTRL + U --- */
+document.addEventListener('contextmenu', event => event.preventDefault());
+document.onkeydown = function(e) {
+  if (e.keyCode == 123) return false; 
+  if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
+  if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
+  if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
+  if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false; 
+  if (e.ctrlKey && e.keyCode == 'S'.charCodeAt(0)) return false; 
+};
 
 renderHistory();
-
 </script>
 </body>
 </html>
